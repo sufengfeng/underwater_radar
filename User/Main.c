@@ -190,16 +190,24 @@ void Delay_us(uint32_t us)
 
 //20ms回调事件
 void Func_Task_1000ms01(void){	//忽略
-	static uint32_t j=0;
-	j++;
+	// static uint32_t j=0;
+	// j++;
 	Task_Update_Range();
+	if(WIFI_CONNECT_FLAG){
+		char tmpStr[128];
+		memset(tmpStr,0,sizeof(tmpStr));
+		sprintf(tmpStr,"range=[%f]",range);
+		if(NO_CONNECT==ESP_Send_Data(tmpStr,strlen((char *)tmpStr))){
+			WIFI_CONNECT_FLAG=0;
+		}
+	}
 	// esp8266_Config();
 	// static uint32_t counter=0;
 	// counter++;
 	// printf( "Current counter = %d \r\n" , counter );
-	u2_printf("AT+CIPSEND=0,4\r\n");
-	Delay_us(4);
-	u2_printf("%f\r\n",range);
+	// u2_printf("AT+CIPSEND=0,4\r\n");
+	// Delay_us(4);
+	// u2_printf("%f\r\n",range);
 	
 }
 //40ms回调事件
@@ -213,7 +221,7 @@ void Func_Task_10ms01(void){	//忽略
 
 //50ms回调事件
 void Func_Task_1ms01(void){	//忽略
-;
+	ESP_Data_Rcv();
 }
 
 //systick定时器1msz中断调度任务
@@ -311,8 +319,7 @@ void Process_Uart3_data(u8* rx_buf, int len)
 		} 
 	}
 }
-#define UART3_RXBUFFER_MAX_SIZE (1024+20)  	//定义最大接收字节数 200
-u8 UART3_RxBuffer[UART3_RXBUFFER_MAX_SIZE]={0};
+
 /*
 void DMA1_Stream3_IRQHandler(void){
      if(DMA_GetITStatus(USART_Rx_DMA_FLAG, DMA_IT_TCIF3) == SET){        
@@ -324,23 +331,23 @@ void DMA1_Stream3_IRQHandler(void){
 // #define UART1_TXBUFFER_MAX_SIZE       (1024+20)  	//定义最大接收字节数 200
 // #define UART1_RXBUFFER_MAX_SIZE  			(1024+20)  	//定义最大接收字节数 200
 
-static volatile u8 UART3_RxCounter = 0;
-void USART3_IRQHandler(void)
-{
-	if(USART_GetITStatus(USART3,USART_IT_IDLE) != RESET)
-	{
-		//null read hardware, no delete
-		u8 ret = USART3->SR;  
-		ret = USART3->DR; 
-		DMA_Cmd(DMA1_Stream1,DISABLE); 
-		UART3_RxCounter =  UART3_RXBUFFER_MAX_SIZE - DMA_GetCurrDataCounter(DMA1_Stream1);		
-		Process_Uart3_data(UART3_RxBuffer, UART3_RxCounter);
+// static volatile u8 UART3_RxCounter = 0;
+// void USART3_IRQHandler(void)
+// {
+// 	if(USART_GetITStatus(USART3,USART_IT_IDLE) != RESET)
+// 	{
+// 		//null read hardware, no delete
+// 		u8 ret = USART3->SR;  
+// 		ret = USART3->DR; 
+// 		DMA_Cmd(DMA1_Stream1,DISABLE); 
+// 		UART3_RxCounter =  UART3_RXBUFFER_MAX_SIZE - DMA_GetCurrDataCounter(DMA1_Stream1);		
+// 		Process_Uart3_data(UART3_RxBuffer, UART3_RxCounter);
 		
-		//drv_UART3_RecvTest(UART3_RxBuffer,UART3_RxCounter);
-		DMA_SetCurrDataCounter(DMA1_Stream1,UART3_RXBUFFER_MAX_SIZE);
-		DMA_Cmd(DMA1_Stream1,ENABLE);
-	}
-}
+// 		//drv_UART3_RecvTest(UART3_RxBuffer,UART3_RxCounter);
+// 		DMA_SetCurrDataCounter(DMA1_Stream1,UART3_RXBUFFER_MAX_SIZE);
+// 		DMA_Cmd(DMA1_Stream1,ENABLE);
+// 	}
+// }
 void drv_UART3_Init(void)
 {
 	GPIO_InitTypeDef GPIO_InitStructure;
@@ -406,7 +413,7 @@ void drv_UART3_RxDMAInit()
 
 	DMA_InitStructure.DMA_Channel = DMA_Channel_4;
 	DMA_InitStructure.DMA_PeripheralBaseAddr = (u32)(&(USART3->DR));
-	DMA_InitStructure.DMA_Memory0BaseAddr = (u32)(UART3_RxBuffer); 
+	DMA_InitStructure.DMA_Memory0BaseAddr = (u32)(esp_rxbuf); 
 	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory;
 	DMA_InitStructure.DMA_BufferSize = UART3_RXBUFFER_MAX_SIZE;
 	DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
@@ -459,7 +466,24 @@ int main( void )
 	
 	drv_UART3_Init();
 	drv_UART3_RxDMAInit();
-	esp8266_Config();
+	// esp8266_Config();
+	// ESP_Init();
+	//TIM14_CH1_PWM_Init(20000-1,84-1); //50Hz
+	// TIM14_CH1_PWM_Init(200-1,8400-1); //50Hz
+	// TIM_SetCompare1(TIM14,15);
+	// TIM1_PWM_Init(2000-1,840-1);	//84分频。PWM频率=84000000/840/2000=50hz
+	TIM1_PWM_Init(2000-1,1680-1);	//84分频。PWM频率=84000000/840/2000=50hz
+	TIM_SetCompare1(TIM1,150);		//取值范围为50-250对应正向最大转速和反向最大转速
+/*
+（前提是一个周期为20ms的）PWM信号与360舵机转速的关系
+0.5ms----------------正向最大转速；
+1.5ms----------------速度为0；
+2.5ms----------------反向最大转速；
+与180度舵机比较，需要明确的是360度舵机无法像180度舵机一样控制角度，它只能控制方向和速度。
+
+
+*/
+
 	/*
 	printFront(4,0,0);//距	
 	printFront(4,16,1);//离
