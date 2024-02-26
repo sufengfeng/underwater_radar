@@ -91,14 +91,14 @@ void Port_Clk_Config( void )
 //	GPIO_PinAFConfig( GPIOD , GPIO_PinSource5 , GPIO_AF_USART2 );			//开启复用
 //	GPIO_PinAFConfig( GPIOD , GPIO_PinSource6 , GPIO_AF_USART2 );
 //	
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8| GPIO_Pin_9;                   //USART3
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-	GPIO_Init( GPIOD , &GPIO_InitStructure );
-	GPIO_PinAFConfig( GPIOD , GPIO_PinSource8 , GPIO_AF_USART3 );			//开启复用
-	GPIO_PinAFConfig( GPIOD , GPIO_PinSource9 , GPIO_AF_USART3 );
+//	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8| GPIO_Pin_9;                   //USART3
+//	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+//	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+//	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+//	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+//	GPIO_Init( GPIOD , &GPIO_InitStructure );
+//	GPIO_PinAFConfig( GPIOD , GPIO_PinSource8 , GPIO_AF_USART3 );			//开启复用
+//	GPIO_PinAFConfig( GPIOD , GPIO_PinSource9 , GPIO_AF_USART3 );
 //	
 //PORTD
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8;      //       

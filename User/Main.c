@@ -30,7 +30,7 @@
 #include "Communication.h"
 #include "FIR.h"
 #include "Correlation.h"
-
+#include "stm32f4xx_dma.h"
 typedef void (*Func)(void);
 
 typedef struct _SoftTimer{
@@ -89,7 +89,7 @@ float real_speed = 340;
 u32 test_deadpoint = 100;   
 #define USART3_MAX_SEND_LEN (128)
 char USART3_TX_BUF[USART3_MAX_SEND_LEN];
-#define  delay_s Delay_Ms
+// #define  delay_s Delay_Ms
 #include <stdarg.h>
  /* 串口3,printf 函数
   * 确保一次发送数据不超过USART3_MAX_SEND_LEN字节
@@ -117,21 +117,28 @@ void esp8266_Config(void){
 	* 5.AT+CIPMUX=1 :打开多连接（串口助手）
 	* 6.AT+CIPSERVER=1,8800 :设置模块服务器端口（串口助手）
 	*/
-	delay_s(2);
+	Delay_Ms(200);
 	u2_printf("AT+RST\r\n");
-	delay_s(10);
-	u2_printf("AT+CWMODE=1\r\n");
-	delay_s(5);
-	u2_printf("AT+CWJAP=\"123123\",\"12345678\"\r\n");
-	delay_s(15);
-	u2_printf("AT+CIPMUX=0\r\n");
-	delay_s(5);
-	u2_printf("AT+CIPMODE=1\r\n");
-	delay_s(5);
+	Delay_Ms(200);
+	u2_printf("AT+CWMODE=2\r\n");	//设置为AP模式
+	Delay_Ms(200);
+	// u2_printf("AT+CWJAP=\"Xiaomi_604\",\"wei123456\"\r\n");
+	// Delay_Ms(12000);
+	//设置账户密码
+	u2_printf("AT+CWSAP=\"MY_ESP\",\"12345678\",1,3,4,0\r\n");	//checkout IP address
+	Delay_Ms(2000);
+
+	u2_printf("AT+CIPMUX=1\r\n");
+	Delay_Ms(2000);
+	// u2_printf("AT+CIPMODE=1\r\n");
+	// Delay_Ms(2000);
 	u2_printf("AT+CIPSERVER=1,8800\r\n");
-	delay_s(5);
-	u2_printf("AT+CIPSEND\r\n");
-	delay_s(5);
+	Delay_Ms(2000);
+	u2_printf("AT+CIPAP?\r\n");	//checkout IP address
+	Delay_Ms(2000);
+
+	// u2_printf("AT+CIPSEND\r\n");
+	// Delay_Ms(2000);
 }
 
 //在sys.c里定义一个全局变量，定时器初始化时将其置为0，启动定时器
@@ -183,10 +190,17 @@ void Delay_us(uint32_t us)
 
 //20ms回调事件
 void Func_Task_1000ms01(void){	//忽略
+	static uint32_t j=0;
+	j++;
 	Task_Update_Range();
+	// esp8266_Config();
 	// static uint32_t counter=0;
 	// counter++;
 	// printf( "Current counter = %d \r\n" , counter );
+	u2_printf("AT+CIPSEND=0,4\r\n");
+	Delay_us(4);
+	u2_printf("%f\r\n",range);
+	
 }
 //40ms回调事件
 void Func_Task_100ms01(void){
@@ -286,6 +300,132 @@ void Task_Update_Range(void ){
         // Delay_Ms(1000);
 	}
 
+
+void Process_Uart3_data(u8* rx_buf, int len)
+{
+	if(len>1){
+		for(int i=0;i<len;i++)							//??????
+		{
+			while(USART_GetFlagStatus(USART1,USART_FLAG_TC)==RESET); //????,??????   
+			USART_WriteChar(USART1,rx_buf[i]); 
+		} 
+	}
+}
+#define UART3_RXBUFFER_MAX_SIZE (1024+20)  	//定义最大接收字节数 200
+u8 UART3_RxBuffer[UART3_RXBUFFER_MAX_SIZE]={0};
+/*
+void DMA1_Stream3_IRQHandler(void){
+     if(DMA_GetITStatus(USART_Rx_DMA_FLAG, DMA_IT_TCIF3) == SET){        
+        DMA_ClearITPendingBit(USART_Rx_DMA_FLAG, DMA_IT_TCIF3);
+				DMA_Cmd(USART_Rx_DMA_FLAG, DISABLE);
+    }
+}
+*/
+// #define UART1_TXBUFFER_MAX_SIZE       (1024+20)  	//定义最大接收字节数 200
+// #define UART1_RXBUFFER_MAX_SIZE  			(1024+20)  	//定义最大接收字节数 200
+
+static volatile u8 UART3_RxCounter = 0;
+void USART3_IRQHandler(void)
+{
+	if(USART_GetITStatus(USART3,USART_IT_IDLE) != RESET)
+	{
+		//null read hardware, no delete
+		u8 ret = USART3->SR;  
+		ret = USART3->DR; 
+		DMA_Cmd(DMA1_Stream1,DISABLE); 
+		UART3_RxCounter =  UART3_RXBUFFER_MAX_SIZE - DMA_GetCurrDataCounter(DMA1_Stream1);		
+		Process_Uart3_data(UART3_RxBuffer, UART3_RxCounter);
+		
+		//drv_UART3_RecvTest(UART3_RxBuffer,UART3_RxCounter);
+		DMA_SetCurrDataCounter(DMA1_Stream1,UART3_RXBUFFER_MAX_SIZE);
+		DMA_Cmd(DMA1_Stream1,ENABLE);
+	}
+}
+void drv_UART3_Init(void)
+{
+	GPIO_InitTypeDef GPIO_InitStructure;
+	USART_InitTypeDef USART_InitStructure;
+	NVIC_InitTypeDef NVIC_InitStructure;
+
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB|RCC_AHB1Periph_GPIOD,ENABLE); //Enable GPIOB Clock
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3,ENABLE); //Enable UART3 Clock
+
+#if (V50_POWER_DIR_CTRL)
+	GPIO_PinAFConfig(GPIOD,GPIO_PinSource8,GPIO_AF_USART3); //PD8  alternate to USART3-TX
+	GPIO_PinAFConfig(GPIOD,GPIO_PinSource9,GPIO_AF_USART3); //PD9  alternate to USART3-RX
+
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8 | GPIO_Pin_9; 
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;	
+	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP; 
+	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP; 
+	GPIO_Init(GPIOD,&GPIO_InitStructure);
+#else
+	GPIO_PinAFConfig(GPIOB,GPIO_PinSource10,GPIO_AF_USART3); //PB10  alternate to USART3-TX
+	GPIO_PinAFConfig(GPIOB,GPIO_PinSource11,GPIO_AF_USART3); //PB11  alternate to USART3-RX
+
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10 | GPIO_Pin_11; 
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;	
+	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP; 
+	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP; 
+	GPIO_Init(GPIOB,&GPIO_InitStructure);
+#endif
+	USART_InitStructure.USART_BaudRate = 115200;
+	USART_InitStructure.USART_WordLength = USART_WordLength_8b;
+	USART_InitStructure.USART_StopBits = USART_StopBits_1;
+	USART_InitStructure.USART_Parity = USART_Parity_No;
+	USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
+	USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
+
+	USART_Init(USART3, &USART_InitStructure); 
+	USART_ITConfig(USART3, USART_IT_IDLE, ENABLE);
+
+	USART_Cmd(USART3, ENABLE);  
+
+	//USART_ClearFlag(USART3, USART_FLAG_TC);
+	USART_ClearITPendingBit(USART3, USART_IT_TC);
+	//Usart3_RX  NVIC
+	NVIC_InitStructure.NVIC_IRQChannel = USART3_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 4;	
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;	
+	NVIC_Init(&NVIC_InitStructure);			
+}
+
+
+/*!<USART3_RX DMA at DMA1 channel 4  stream 5 and use AHB1 clock
+* @Author: Chenxi
+* @Date: 2015-02-14
+*/
+void drv_UART3_RxDMAInit()
+{
+	DMA_InitTypeDef DMA_InitStructure;
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA1,ENABLE);
+	DMA_DeInit(DMA1_Stream1);
+
+	DMA_InitStructure.DMA_Channel = DMA_Channel_4;
+	DMA_InitStructure.DMA_PeripheralBaseAddr = (u32)(&(USART3->DR));
+	DMA_InitStructure.DMA_Memory0BaseAddr = (u32)(UART3_RxBuffer); 
+	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory;
+	DMA_InitStructure.DMA_BufferSize = UART3_RXBUFFER_MAX_SIZE;
+	DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+	DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
+	DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
+	DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
+	DMA_InitStructure.DMA_Mode = DMA_Mode_Circular;
+	DMA_InitStructure.DMA_Priority = DMA_Priority_High;
+	DMA_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Disable;         
+	DMA_InitStructure.DMA_FIFOThreshold = DMA_FIFOThreshold_HalfFull;
+	DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single;
+	DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
+	DMA_Init(DMA1_Stream1,&DMA_InitStructure);
+
+	USART_DMACmd(USART3, USART_DMAReq_Rx, ENABLE);
+	DMA_SetCurrDataCounter(DMA1_Stream1,UART3_RXBUFFER_MAX_SIZE);
+	DMA_Cmd(DMA1_Stream1,ENABLE); 
+}
+
 int main( void )
 {
 	u32 i;
@@ -312,10 +452,14 @@ int main( void )
 	TIM3_Config( SAM_FRE );                     //触发ADC采样频率
 	ADC_Config();                               //ADC
 	UART1_Config( 9600 );
-	UART3_Config(115200);
-	esp8266_Config();
+	printf( " build time = %s-%s \r\n" ,__DATE__, __TIME__ );
+
 	ResetLcd();
 	ClrScreen();
+	
+	drv_UART3_Init();
+	drv_UART3_RxDMAInit();
+	esp8266_Config();
 	/*
 	printFront(4,0,0);//距	
 	printFront(4,16,1);//离

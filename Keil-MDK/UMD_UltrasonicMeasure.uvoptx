@@ -294,6 +294,26 @@
           <WinNumber>1</WinNumber>
           <ItemText>us_tick</ItemText>
         </Ww>
+        <Ww>
+          <count>28</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>RxBuffer</ItemText>
+        </Ww>
+        <Ww>
+          <count>29</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>rec_len</ItemText>
+        </Ww>
+        <Ww>
+          <count>30</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>UART3_RxCounter</ItemText>
+        </Ww>
+        <Ww>
+          <count>31</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>UART3_RxBuffer</ItemText>
+        </Ww>
       </WatchWindow1>
       <WatchWindow2>
         <Ww>
