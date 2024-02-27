@@ -163,21 +163,21 @@ void Func_Task_1000ms01(void){	//忽略
 	// j++;
 	Task_Update_Range();
 	// if(WIFI_CONNECT_FLAG){
-	// 	char tmpStr[128];
-	// 	memset(tmpStr,0,sizeof(tmpStr));
-	// 	sprintf(tmpStr,"range=[%f]",range);
-	// 	if(NO_CONNECT==ESP_Send_Data(tmpStr,strlen((char *)tmpStr))){
-	// 		;//WIFI_CONNECT_FLAG=0;
-	// 	}
+		// char tmpStr[128];
+		// memset(tmpStr,0,sizeof(tmpStr));
+		// sprintf(tmpStr,"range=[%f]",range);
+		// if(NO_CONNECT==ESP_Send_Data(tmpStr,strlen((char *)tmpStr))){
+		// 	;//WIFI_CONNECT_FLAG=0;
+		// }
 	// }
 	// esp8266_Config();
 	// static uint32_t counter=0;
 	// counter++;
 	// printf( "Current counter = %d \r\n" , counter );
-	// u2_printf("AT+CIPSEND=0,4\r\n");
-	// Delay_us(4);
-	// u2_printf("%f\r\n",range);
 	
+	u2_printf("AT+CIPSEND=0,4\r\n");
+	Delay_us(4);
+	u2_printf("%f\r\n",range);
 }
 //40ms回调事件
 void Func_Task_100ms01(void){
@@ -190,10 +190,6 @@ void Func_Task_10ms01(void){	//忽略
 
 //50ms回调事件
 void Func_Task_1ms01(void){	//忽略
-	if(flag_uart3_recv){
-		ESP_Data_Rcv();
-		flag_uart3_recv=0;
-	}
 	
 }
 
@@ -422,8 +418,6 @@ int main( void )
 1.5ms----------------速度为0；
 2.5ms----------------反向最大转速；
 与180度舵机比较，需要明确的是360度舵机无法像180度舵机一样控制角度，它只能控制方向和速度。
-
-
 */
 
 	/*
@@ -446,6 +440,10 @@ int main( void )
 	}
 	while(1){
 		TaskSchedule();
+		if(flag_uart3_recv){
+			ESP_Data_Rcv();
+			flag_uart3_recv=0;
+		}
 		// Task_Update_Range();
 		// Delay_Ms(1000);
 	}

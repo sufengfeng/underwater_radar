@@ -2,81 +2,83 @@
 //https://blog.csdn.net/Chuangke_Andy/article/details/117923344
 #define HAL_Delay Delay_Ms
 uint8_t esp_rxbuf[UART3_RXBUFFER_MAX_SIZE];		//ESP数据接收缓冲区
-void UART_WriteCurve(  u16 *s , u32 Num )
-{
-	u32 i;
-	u8 j;
-	s32 temps32;
-	u8 temp8[3];
+// Queue l_sT_Response;	//发送命令缓存区
+// Queue l_sT_Response;	//接收命令缓存区
+// void UART_WriteCurve(  u16 *s , u32 Num )
+// {
+// 	u32 i;
+// 	u8 j;
+// 	s32 temps32;
+// 	u8 temp8[3];
 	
-	UART_WriteChar(170);
-	UART_WriteChar(90);
-	UART_WriteChar(80);
+// 	UART_WriteChar(170);
+// 	UART_WriteChar(90);
+// 	UART_WriteChar(80);
 	
-	UART_WriteChar(50);		//通道
+// 	UART_WriteChar(50);		//通道
 	
-	UART_WriteChar(100);
-	UART_WriteChar(180);
-	UART_WriteChar( (Num*3+1)/256 );
-	UART_WriteChar( (Num*3+1)%256 );
+// 	UART_WriteChar(100);
+// 	UART_WriteChar(180);
+// 	UART_WriteChar( (Num*3+1)/256 );
+// 	UART_WriteChar( (Num*3+1)%256 );
 	
-	UART_WriteChar( 1 );           //增益
+// 	UART_WriteChar( 1 );           //增益
 	
-	for( i=0; i<Num ; i++)
-	{
-		temps32 = s[i];
-		temps32 -= 2047;
-		temps32 *= 65536*2;
-		temp8[0] = (temps32 & 0xff000000)>>24;
-		temp8[1] = (temps32 & 0x00ff0000)>>16;
-		temp8[2] = (temps32 & 0x0000ff00)>>8;
-		for( j=0 ; j<3 ; j++ )
-		{
-			UART_WriteChar( temp8[j] );
-		}
-	}
+// 	for( i=0; i<Num ; i++)
+// 	{
+// 		temps32 = s[i];
+// 		temps32 -= 2047;
+// 		temps32 *= 65536*2;
+// 		temp8[0] = (temps32 & 0xff000000)>>24;
+// 		temp8[1] = (temps32 & 0x00ff0000)>>16;
+// 		temp8[2] = (temps32 & 0x0000ff00)>>8;
+// 		for( j=0 ; j<3 ; j++ )
+// 		{
+// 			UART_WriteChar( temp8[j] );
+// 		}
+// 	}
 	
-	for( i=0; i<30 ; i++)
-	{
-		UART_WriteChar(0);
-	}
-}
+// 	for( i=0; i<30 ; i++)
+// 	{
+// 		UART_WriteChar(0);
+// 	}
+// }
 
-void UART_WriteCurve_s16(  s16 *s , u32 Num1 )
-{
-	u32 i;
-	u32 Num = Num1*4;
-	UART_WriteChar( 'A' );
-	UART_WriteChar( 'D' );
-	UART_WriteChar( 'C' );
-	UART_WriteChar( 'P' );
-	UART_WriteChar( '_' );
-	UART_WriteChar( 'R' );
-	UART_WriteChar( 'X' );
+// void UART_WriteCurve_s16(  s16 *s , u32 Num1 )
+// {
+// 	u32 i;
+// 	u32 Num = Num1*4;
+// 	UART_WriteChar( 'A' );
+// 	UART_WriteChar( 'D' );
+// 	UART_WriteChar( 'C' );
+// 	UART_WriteChar( 'P' );
+// 	UART_WriteChar( '_' );
+// 	UART_WriteChar( 'R' );
+// 	UART_WriteChar( 'X' );
 	
 	
-	UART_WriteChar( (Num&0xff000000)>>24);
-	UART_WriteChar( (Num&0x00ff0000)>>16);
-	UART_WriteChar( (Num&0x0000ff00)>>8);
-	UART_WriteChar( (Num&0x000000ff) );
+// 	UART_WriteChar( (Num&0xff000000)>>24);
+// 	UART_WriteChar( (Num&0x00ff0000)>>16);
+// 	UART_WriteChar( (Num&0x0000ff00)>>8);
+// 	UART_WriteChar( (Num&0x000000ff) );
 	
-	for( i=0 ; i<Num1 ; i++ )
-	{
-		if( s[i]&0x8000 )
-		{
-			UART_WriteChar(0xff);
-			UART_WriteChar(0xff);
-		}
-		else
-		{
-			UART_WriteChar(0);
-			UART_WriteChar(0);
-		}
-		UART_WriteChar( (s[i]&0xff00)>>8 );
-		UART_WriteChar( s[i]&0x00ff );
-	}
+// 	for( i=0 ; i<Num1 ; i++ )
+// 	{
+// 		if( s[i]&0x8000 )
+// 		{
+// 			UART_WriteChar(0xff);
+// 			UART_WriteChar(0xff);
+// 		}
+// 		else
+// 		{
+// 			UART_WriteChar(0);
+// 			UART_WriteChar(0);
+// 		}
+// 		UART_WriteChar( (s[i]&0xff00)>>8 );
+// 		UART_WriteChar( s[i]&0x00ff );
+// 	}
 	
-}
+// }
 
 
 
@@ -192,21 +194,23 @@ tCmdStatus ESP_Send_Data(uint8_t *SendBuf,uint8_t len){
 * Return         	: none
 *******************************************************************************/
 void ESP_Data_Rcv(void){
-    if((!WIFI_CONNECT_FLAG) && (strstr((char *)(esp_rxbuf),"CONNECT")!=NULL)){ 
+	char esp_rxbuf_[BUF_MAX_SIZE];
+	memcpy(esp_rxbuf_,esp_rxbuf,BUF_MAX_SIZE);
+    if((!WIFI_CONNECT_FLAG) && (strstr((char *)(esp_rxbuf_),"CONNECT")!=NULL)){ 
 		printf("WIFI已连接\n");	
 		WIFI_CONNECT_FLAG = 1;   //WIFI设备已连接，置位连接标志位
 	}
-	if(strstr((char *)(esp_rxbuf),"+IPD") != NULL  ){ //收到客户端数据
+	if(strstr((char *)(esp_rxbuf_),"+IPD") != NULL  ){ //收到客户端数据
 		printf("WIFI收到上位机数据\n");	
 		//提取并处理数据;
-		EP32_RcvData_Extract(esp_rxbuf);	
+		EP32_RcvData_Extract(esp_rxbuf_);	
 		return ;							
 	}	
-	if(strstr((char *)(esp_rxbuf),"CLOSED") != NULL){ //客户端断开连接
+	if(strstr((char *)(esp_rxbuf_),"CLOSED") != NULL){ //客户端断开连接
 		printf("WIFI断开连接\n");		 
 		WIFI_CONNECT_FLAG = 0;    //清除连接标志位
 	}		
-	memset(&esp_rxbuf,0,sizeof(esp_rxbuf));
+	memset(&esp_rxbuf_,0,sizeof(esp_rxbuf_));
 }
 #define ServoSet "ServoSet"
 /*******************************************************************************
@@ -221,10 +225,16 @@ void EP32_RcvData_Extract(uint8_t *rev_buf){
 		ESP_Send_Data(t_buf,strlen((char *)t_buf));
 	else if(strstr((char *)(rev_buf),"HUMIDITY")!=NULL)
 		ESP_Send_Data(h_buf,strlen((char *)h_buf));
-	else if (!strncmp((char*) rev_buf, ServoSet, strlen(ServoSet))) {
-			int val;
-			int cnt = sscanf((char*) buf, "ServoSet(%d)", &val);
-			if (cnt == 1) {
+	else  if(strstr((char *)(rev_buf),ServoSet)!=NULL) {
+			int val,status,len;
+			//\r\n+IPD,0,13:ServoSet(%d)
+			int cnt = sscanf((char*) rev_buf,"\r\n+IPD,%d,%d:ServoSet(%d)",&status,&len, &val);
+			if (cnt == 3) {
+				if(val<0)
+					val=0;
+				if(val>360)
+					val=360;
+				val=val*5/9+50;
 				printf("ServoSet [%d]\r\n", val);
 				TIM_SetCompare1(TIM1,val);		//取值范围为50-250对应正向最大转速和反向最大转速
 			} else {
@@ -258,7 +268,6 @@ void ESP_Init(void){
 
 
 
-
 //////////////////////////
 /************中断处理函数里的处理********************************************/
 
@@ -284,9 +293,6 @@ void USART3_IRQHandler(void)
 		DMA_Cmd(DMA1_Stream1,ENABLE);
 	}
 }
-
-//舵机控制
-//https://blog.csdn.net/qq_42866708/article/details/113355329
 
 
 //PWM输出初始化
@@ -336,3 +342,30 @@ void TIM1_PWM_Init(u32 arr,u32 psc)
 	TIM_Cmd(TIM1, ENABLE);  //使能TIM1
 	TIM_CtrlPWMOutputs(TIM1, ENABLE);									  
 }  
+
+
+
+int enQueue(Queue *queue,char *buf,int len){
+	if((queue->rear+1)%FIFO_MAX==queue->front){
+		return FIFO_FULL;
+	}
+	if (len > BUF_MAX_SIZE)
+		len = BUF_MAX_SIZE;
+	memcpy(queue->fifo[queue->rear].buf,buf,len);
+	queue->fifo[queue->rear].len=len;
+	queue->rear=(queue->rear+1)%FIFO_MAX;
+	return len;
+}
+int deQueue(Queue *queue,char *buf,int* p_len){
+	if((queue->front )==queue->rear){
+		return FIFO_EMPTY;
+	}
+	memcpy(buf,queue->fifo[queue->front].buf,queue->fifo[queue->front].len);
+	* p_len=queue->fifo[queue->front].len;
+	queue->front = (queue->front + 1) % FIFO_MAX;  //队头指针+1
+	return *p_len;
+}
+//返回队列长度
+int length(Queue *Q) {
+    return (Q->rear - Q->front + FIFO_MAX) % FIFO_MAX; 
+}
