@@ -208,6 +208,7 @@ void ESP_Data_Rcv(void){
 	}		
 	memset(&esp_rxbuf,0,sizeof(esp_rxbuf));
 }
+#define ServoSet "ServoSet"
 /*******************************************************************************
 * Function Name  	: EP32_RcvData_Extract
 * Description    	: 提取WiFi设备发送给ESP的数据并做处理
@@ -220,6 +221,17 @@ void EP32_RcvData_Extract(uint8_t *rev_buf){
 		ESP_Send_Data(t_buf,strlen((char *)t_buf));
 	else if(strstr((char *)(rev_buf),"HUMIDITY")!=NULL)
 		ESP_Send_Data(h_buf,strlen((char *)h_buf));
+	else if (!strncmp((char*) rev_buf, ServoSet, strlen(ServoSet))) {
+			int val;
+			int cnt = sscanf((char*) buf, "ServoSet(%d)", &val);
+			if (cnt == 1) {
+				printf("ServoSet [%d]\r\n", val);
+				TIM_SetCompare1(TIM1,val);		//取值范围为50-250对应正向最大转速和反向最大转速
+			} else {
+				printf("Error CMD\r\n");
+			}
+
+		}
 	else
 		ESP_Send_Data((uint8_t *)buf,strlen(buf));
 }
@@ -249,36 +261,11 @@ void ESP_Init(void){
 
 //////////////////////////
 /************中断处理函数里的处理********************************************/
-#define BUFFER_SIZE 128
+
 uint8_t rx_len;			//接收一帧数据的长度
 uint8_t recv_end_flag;	//一帧数据接收完成标志
-uint8_t usart2_rxbuf[128];	//USART2_RMA接收缓冲区
-extern uint8_t esp_rxbuf[128];	//ESP数据接收缓冲区
-
-// void USART2_IRQHandler(void){
-//   /* USER CODE BEGIN USART2_IRQn 0 */
-//   uint32_t tmp_flag = 0;
-//   uint32_t temp;
-//   recv_end_flag = 0;
-//   tmp_flag =  __HAL_UART_GET_FLAG(&huart2,UART_FLAG_IDLE);//获取IDLE标志位 
-//   if((tmp_flag != RESET)){ 		//IDLE标志位被置位（即触发IDLE空闲中断）
-// 	__HAL_UART_CLEAR_IDLEFLAG(&huart2); //清除标志位
-// 	HAL_UART_DMAStop(&huart2);//关闭DMA防止处理数据时接收数据，产生干扰
-// 	temp = hdma_usart2_rx.Instance->CNDTR;//获取DMA中未传输的数据个数
-// 	rx_len =  BUFFER_SIZE - temp;//已经接收的数据个数=总计数-未传输的数据个数 
-// 	recv_end_flag = 1;//接收完成标志置1
-	
-// 	uint8_t i;
-// 	for(i=0;i<128;i++)
-// 		esp_rxbuf[i] = usart2_rxbuf[i];
-// 	memset(&usart2_rxbuf,0,sizeof(usart2_rxbuf));
-
-// 	HAL_UART_Receive_DMA(&huart2,usart2_rxbuf,BUFFER_SIZE);//重启DMA接收	
-//   }	
-//   /* USER CODE END USART2_IRQn 0 */
-//   HAL_UART_IRQHandler(&huart2);
-// }
-
+uint8_t usart3_rxbuf[UART3_RXBUFFER_MAX_SIZE];	//USART2_RMA接收缓冲区
+uint8_t flag_uart3_recv=0;
 void USART3_IRQHandler(void)
 {
 	if(USART_GetITStatus(USART3,USART_IT_IDLE) != RESET)
@@ -288,10 +275,10 @@ void USART3_IRQHandler(void)
 		ret = USART3->DR; 
 		DMA_Cmd(DMA1_Stream1,DISABLE); 
 		rx_len =  UART3_RXBUFFER_MAX_SIZE - DMA_GetCurrDataCounter(DMA1_Stream1);		
+		memcpy(esp_rxbuf,usart3_rxbuf,rx_len);
+		memset(&usart3_rxbuf,0,sizeof(usart3_rxbuf));
+		flag_uart3_recv=1;
 		// Process_Uart3_data(esp_rxbuf, rx_len);
-		for(int i=0;i<128;i++)
-			esp_rxbuf[i] = esp_rxbuf[i];
-		memset(&usart2_rxbuf,0,sizeof(esp_rxbuf));
 		//drv_UART3_RecvTest(UART3_RxBuffer,UART3_RxCounter);
 		DMA_SetCurrDataCounter(DMA1_Stream1,UART3_RXBUFFER_MAX_SIZE);
 		DMA_Cmd(DMA1_Stream1,ENABLE);
@@ -300,56 +287,7 @@ void USART3_IRQHandler(void)
 
 //舵机控制
 //https://blog.csdn.net/qq_42866708/article/details/113355329
-void TIM14_CH1_PWM_Init(u16 per,u16 psc)
-{
-	TIM_TimeBaseInitTypeDef TIM_TimeBaseInitStructure;
-	TIM_OCInitTypeDef TIM_OCInitStructure;
-	GPIO_InitTypeDef GPIO_InitStructure;
-	
-	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA,ENABLE);
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM14,ENABLE);//使能TIM14时钟
-	
-	GPIO_PinAFConfig(GPIOA,GPIO_PinSource7,GPIO_AF_TIM14);//管脚复用
-	GPIO_InitStructure.GPIO_Mode=GPIO_Mode_AF; //复用输出模式
-	GPIO_InitStructure.GPIO_Pin=GPIO_Pin_7;//管脚设置
-	GPIO_InitStructure.GPIO_Speed=GPIO_Speed_100MHz;//速度为100M
-	GPIO_InitStructure.GPIO_OType=GPIO_OType_PP;//推挽输出
-	GPIO_InitStructure.GPIO_PuPd=GPIO_PuPd_UP;//上拉
-	GPIO_Init(GPIOA,&GPIO_InitStructure); //初始化结构体
-	
-	
-	TIM_TimeBaseInitStructure.TIM_Period=per;   //自动装载值
-	TIM_TimeBaseInitStructure.TIM_Prescaler=psc; //分频系数
-	TIM_TimeBaseInitStructure.TIM_ClockDivision=TIM_CKD_DIV1;
-	TIM_TimeBaseInitStructure.TIM_CounterMode=TIM_CounterMode_Up; //设置向上计数模式
-	TIM_TimeBaseInit(TIM14,&TIM_TimeBaseInitStructure);	
-	
-	TIM_OCInitStructure.TIM_OCMode=TIM_OCMode_PWM1;
-	TIM_OCInitStructure.TIM_OCPolarity=TIM_OCPolarity_Low;
-	TIM_OCInitStructure.TIM_OutputState=TIM_OutputState_Enable;
-	TIM_OC1Init(TIM14,&TIM_OCInitStructure); //输出比较通道1初始化
-	
-	TIM_OC1PreloadConfig(TIM14,TIM_OCPreload_Enable); //使能TIMx在 CCR1 上的预装载寄存器
-	TIM_ARRPreloadConfig(TIM14,ENABLE);//使能预装载寄存器
-	
-	TIM_Cmd(TIM14,ENABLE); //使能定时器
-		
-}
-int maintest()
-{
-	// SysTick_Init(168);
-	// NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);  //中断优先级分组 分2组
-	TIM14_CH1_PWM_Init(20000-1,84-1); //50Hz
-	while(1)
-	{
-		TIM_SetCompare1(TIM14,500);
-		// delay_ms(2000);
-		TIM_SetCompare1(TIM14,1500); 
-		// delay_ms(2000);
-		TIM_SetCompare1(TIM14,2500); 
-		// delay_ms(2000);			
-	}
-}
+
 
 //PWM输出初始化
 //arr：自动重装值

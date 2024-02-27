@@ -12,8 +12,9 @@ void UART_WriteCurve_s16(  s16 *s , u32 Num1 );
 
 /************************esp8266.h************************/
 #define UART3_RXBUFFER_MAX_SIZE 128  	//定义最大接收字节数 200
-extern uint8_t esp_rxbuf[UART3_RXBUFFER_MAX_SIZE];		//ESP数据接收缓冲区
+extern uint8_t usart3_rxbuf[UART3_RXBUFFER_MAX_SIZE];		//ESP数据接收缓冲区
 extern uint8_t WIFI_CONNECT_FLAG;    //WIFI连接标志位
+extern uint8_t flag_uart3_recv;
 // AT命令号
 typedef enum{	
 	AT_IDIE  = 0,

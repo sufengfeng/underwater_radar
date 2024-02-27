@@ -108,38 +108,7 @@ void u2_printf(char* fmt,...)
 		USART_WriteChar(USART3,USART3_TX_BUF[j]); 
 	} 
 }
-void esp8266_Config(void){
- /*
-	* 1.AT+CWMODE=1 :设置模组为STA模式。（串口助手）
-	* 2.AT+CWLAP :查询附近WIFI（串口助手）
-	* 3.AT+CWJAP="123123","12345678" :连接?WIFI（串口助手）
-	* 4.AT+CIFSR :查看路由器分配给模组的IP地址,例如192.168.43.104（串口助手）
-	* 5.AT+CIPMUX=1 :打开多连接（串口助手）
-	* 6.AT+CIPSERVER=1,8800 :设置模块服务器端口（串口助手）
-	*/
-	Delay_Ms(200);
-	u2_printf("AT+RST\r\n");
-	Delay_Ms(200);
-	u2_printf("AT+CWMODE=2\r\n");	//设置为AP模式
-	Delay_Ms(200);
-	// u2_printf("AT+CWJAP=\"Xiaomi_604\",\"wei123456\"\r\n");
-	// Delay_Ms(12000);
-	//设置账户密码
-	u2_printf("AT+CWSAP=\"MY_ESP\",\"12345678\",1,3,4,0\r\n");	//checkout IP address
-	Delay_Ms(2000);
 
-	u2_printf("AT+CIPMUX=1\r\n");
-	Delay_Ms(2000);
-	// u2_printf("AT+CIPMODE=1\r\n");
-	// Delay_Ms(2000);
-	u2_printf("AT+CIPSERVER=1,8800\r\n");
-	Delay_Ms(2000);
-	u2_printf("AT+CIPAP?\r\n");	//checkout IP address
-	Delay_Ms(2000);
-
-	// u2_printf("AT+CIPSEND\r\n");
-	// Delay_Ms(2000);
-}
 
 //在sys.c里定义一个全局变量，定时器初始化时将其置为0，启动定时器
 __IO uint64_t  us_tick=0;  //#define   __IO    volatile 
@@ -193,14 +162,14 @@ void Func_Task_1000ms01(void){	//忽略
 	// static uint32_t j=0;
 	// j++;
 	Task_Update_Range();
-	if(WIFI_CONNECT_FLAG){
-		char tmpStr[128];
-		memset(tmpStr,0,sizeof(tmpStr));
-		sprintf(tmpStr,"range=[%f]",range);
-		if(NO_CONNECT==ESP_Send_Data(tmpStr,strlen((char *)tmpStr))){
-			WIFI_CONNECT_FLAG=0;
-		}
-	}
+	// if(WIFI_CONNECT_FLAG){
+	// 	char tmpStr[128];
+	// 	memset(tmpStr,0,sizeof(tmpStr));
+	// 	sprintf(tmpStr,"range=[%f]",range);
+	// 	if(NO_CONNECT==ESP_Send_Data(tmpStr,strlen((char *)tmpStr))){
+	// 		;//WIFI_CONNECT_FLAG=0;
+	// 	}
+	// }
 	// esp8266_Config();
 	// static uint32_t counter=0;
 	// counter++;
@@ -221,7 +190,11 @@ void Func_Task_10ms01(void){	//忽略
 
 //50ms回调事件
 void Func_Task_1ms01(void){	//忽略
-	ESP_Data_Rcv();
+	if(flag_uart3_recv){
+		ESP_Data_Rcv();
+		flag_uart3_recv=0;
+	}
+	
 }
 
 //systick定时器1msz中断调度任务
@@ -320,34 +293,7 @@ void Process_Uart3_data(u8* rx_buf, int len)
 	}
 }
 
-/*
-void DMA1_Stream3_IRQHandler(void){
-     if(DMA_GetITStatus(USART_Rx_DMA_FLAG, DMA_IT_TCIF3) == SET){        
-        DMA_ClearITPendingBit(USART_Rx_DMA_FLAG, DMA_IT_TCIF3);
-				DMA_Cmd(USART_Rx_DMA_FLAG, DISABLE);
-    }
-}
-*/
-// #define UART1_TXBUFFER_MAX_SIZE       (1024+20)  	//定义最大接收字节数 200
-// #define UART1_RXBUFFER_MAX_SIZE  			(1024+20)  	//定义最大接收字节数 200
 
-// static volatile u8 UART3_RxCounter = 0;
-// void USART3_IRQHandler(void)
-// {
-// 	if(USART_GetITStatus(USART3,USART_IT_IDLE) != RESET)
-// 	{
-// 		//null read hardware, no delete
-// 		u8 ret = USART3->SR;  
-// 		ret = USART3->DR; 
-// 		DMA_Cmd(DMA1_Stream1,DISABLE); 
-// 		UART3_RxCounter =  UART3_RXBUFFER_MAX_SIZE - DMA_GetCurrDataCounter(DMA1_Stream1);		
-// 		Process_Uart3_data(UART3_RxBuffer, UART3_RxCounter);
-		
-// 		//drv_UART3_RecvTest(UART3_RxBuffer,UART3_RxCounter);
-// 		DMA_SetCurrDataCounter(DMA1_Stream1,UART3_RXBUFFER_MAX_SIZE);
-// 		DMA_Cmd(DMA1_Stream1,ENABLE);
-// 	}
-// }
 void drv_UART3_Init(void)
 {
 	GPIO_InitTypeDef GPIO_InitStructure;
@@ -413,7 +359,7 @@ void drv_UART3_RxDMAInit()
 
 	DMA_InitStructure.DMA_Channel = DMA_Channel_4;
 	DMA_InitStructure.DMA_PeripheralBaseAddr = (u32)(&(USART3->DR));
-	DMA_InitStructure.DMA_Memory0BaseAddr = (u32)(esp_rxbuf); 
+	DMA_InitStructure.DMA_Memory0BaseAddr = (u32)(usart3_rxbuf); 
 	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory;
 	DMA_InitStructure.DMA_BufferSize = UART3_RXBUFFER_MAX_SIZE;
 	DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
@@ -464,15 +410,11 @@ int main( void )
 	ResetLcd();
 	ClrScreen();
 	
-	drv_UART3_Init();
+	drv_UART3_Init();	//uart3与esp8266通信
 	drv_UART3_RxDMAInit();
-	// esp8266_Config();
-	// ESP_Init();
-	//TIM14_CH1_PWM_Init(20000-1,84-1); //50Hz
-	// TIM14_CH1_PWM_Init(200-1,8400-1); //50Hz
-	// TIM_SetCompare1(TIM14,15);
-	// TIM1_PWM_Init(2000-1,840-1);	//84分频。PWM频率=84000000/840/2000=50hz
-	TIM1_PWM_Init(2000-1,1680-1);	//84分频。PWM频率=84000000/840/2000=50hz
+	ESP_Init();			//初始化esp8266
+
+	TIM1_PWM_Init(2000-1,1680-1);	//84分频。PWM频率=168000000/1680/2000=50hz
 	TIM_SetCompare1(TIM1,150);		//取值范围为50-250对应正向最大转速和反向最大转速
 /*
 （前提是一个周期为20ms的）PWM信号与360舵机转速的关系
